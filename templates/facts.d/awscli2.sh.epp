@@ -1,0 +1,13 @@
+<%- | String[1] $bin_dir | -%>
+#!/bin/bash
+#
+# Puppet custom fact that gets the version of the AWS CLI 2 that is installed
+#
+
+if [ -x <%= $bin_dir %>/aws ]; then
+  version=`<%= $bin_dir %>/aws --version |\
+            cut -d ' ' -f 1 |\
+            cut -d '/' -f 2`
+
+  echo "umd_awscli2_version=${version}"
+fi

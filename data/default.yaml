@@ -1,0 +1,3 @@
+---
+awscli2::package_name: awscli2
+awscli2::service_name: awscli2
