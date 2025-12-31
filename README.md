@@ -6,9 +6,8 @@
     * [What awscli2 affects](#what-awscli2-affects)
     * [Requirements](#requirements)
 4. [Usage - Configuration options and additional functionality](#usage)
-    * [Required Parameters](#required-parameters)
     * [Optional Parameters](#optional-parameters)
-    * [Example](#example)
+    * [Examples](#examples)
 5. [Limitations - OS compatibility, etc.](#limitations)
 
 ## Overview
@@ -23,10 +22,11 @@ command (provided by redhat) was installed into that location, and we do
 not want to break any scripts that do not have `/usr/local/bin` in their path
 or may have hard-coded `/usr/bin/aws`.
 
-This module requires the manual specification of the version of the CLI to
-install. This was done to prevent having to download the `latest` zip file
-from AWS on every puppet run just to see if it has been updated. This module
-will remove older versions after a successful upgrade to keep disk space down.
+By default, this module installs the latest available version of the CLI.
+When using a specific version, this module will remove older versions after
+a successful upgrade to keep disk space down. When using `'latest'`, old
+version cleanup is skipped since the version directory name is not known
+at Puppet compile time.
 
 By default, this module verifies the GPG signature of the downloaded package
 using the official AWS CLI public key, as recommended by AWS. This ensures
@@ -59,18 +59,25 @@ has happened will leave the previous installation abandoned.
 
 Include the `awscli2` class and define the following parameters as required:
 
-### Required Parameters
-
-* `version`: The version of the CLI to install, e.g. `'2.15.0'`
-
 ### Optional Parameters
 
+* `version`: The version of the CLI to install, e.g. `'2.15.0'`. Defaults to `'latest'`, which always installs/upgrades to the latest available version. Note: Using `'latest'` will attempt to download and run the installer on every Puppet run (the installer handles idempotency).
 * `ensure`: Set to `absent` to un-install the AWS CLI.
 * `install_dir`: Path to install the CLI into. Defaults to `/usr/local/aws-cli`.
 * `bin_dir`: Path to create symlinks to binaries. Defaults to `/usr/bin`.
 * `verify_signature`: Whether to verify the GPG signature of the downloaded package. Defaults to `true`.
 
-### Example
+### Examples
+
+Install the latest version (default):
+
+```yaml
+---
+classes:
+  - awscli2
+```
+
+Install a specific version:
 
 ```yaml
 ---

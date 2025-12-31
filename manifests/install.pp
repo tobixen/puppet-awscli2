@@ -31,11 +31,18 @@ class awscli2::install {
   # Figure out if we need to do a new install (nothing installed),
   # an upgrade (existing install version differs to requested version)
   # or nothing (existing install version matches requested version)
+  #
+  # When version is 'latest', always attempt an upgrade - the installer
+  # handles idempotency and will skip if already up-to-date.
   $is_installed = $facts['umd_awscli2_version'] != undef
   $version_matches = $is_installed and ($facts['umd_awscli2_version'] == $awscli2::version)
 
   # Determine action needed
-  if $is_installed and !$version_matches {
+  if $awscli2::version == 'latest' {
+    # For 'latest', always run installer (it handles idempotency)
+    $need_install = !$is_installed
+    $need_upgrade = $is_installed
+  } elsif $is_installed and !$version_matches {
     # Installed version differs from requested
     $need_install = false
     $need_upgrade = true
@@ -51,7 +58,12 @@ class awscli2::install {
 
   if $need_install or $need_upgrade {
     # If we need to install/upgrade, we need to pull down the package.
-    $package_url = "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${awscli2::version}.zip"
+    # When version is 'latest', use the non-versioned URL.
+    if $awscli2::version == 'latest' {
+      $package_url = 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip'
+    } else {
+      $package_url = "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${awscli2::version}.zip"
+    }
     $signature_url = "${package_url}.sig"
 
     $default_args = [
@@ -153,34 +165,46 @@ class awscli2::install {
       }
     }
 
-    # These next 3 (v2/latest+version) are created by the installer
-    # but declaring them as resources (after the installer runs)
-    # allows us to have puppet purge old installs while
-    # still preserving the 'current' install we just did.
-    # This model (upgrade first, then remove old) also allows
-    # other things on the system using the aws cli to not fail
-    # if they happen to run while we are upgrading.
-    file { "${awscli2::install_dir}/v2":
-      ensure  => directory,
-      force   => true,
-      purge   => true,
-      recurse => true,
-      require => Exec['awscliv2-installer'],
-    }
+    # When using a specific version, we can purge old versions from the
+    # install directory while preserving the current install. This is done
+    # by declaring the version directory as a resource after the installer runs.
+    # When using 'latest', we skip purging since we don't know the version
+    # directory name at Puppet compile time.
+    if $awscli2::version != 'latest' {
+      # These next 3 (v2/latest+version) are created by the installer
+      # but declaring them as resources (after the installer runs)
+      # allows us to have puppet purge old installs while
+      # still preserving the 'current' install we just did.
+      # This model (upgrade first, then remove old) also allows
+      # other things on the system using the aws cli to not fail
+      # if they happen to run while we are upgrading.
+      file { "${awscli2::install_dir}/v2":
+        ensure  => directory,
+        force   => true,
+        purge   => true,
+        recurse => true,
+        require => Exec['awscliv2-installer'],
+      }
 
-    file { "${awscli2::install_dir}/v2/current":
-      ensure  => link,
-      require => File["${awscli2::install_dir}/v2"],
-    }
+      file { "${awscli2::install_dir}/v2/current":
+        ensure  => link,
+        require => File["${awscli2::install_dir}/v2"],
+      }
 
-    file { "${awscli2::install_dir}/v2/${awscli2::version}":
-      ensure  => directory,
-      require => File["${awscli2::install_dir}/v2/current"],
-    }
+      file { "${awscli2::install_dir}/v2/${awscli2::version}":
+        ensure  => directory,
+        require => File["${awscli2::install_dir}/v2/current"],
+      }
 
-    # clean up the install temp dir.
-    exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install':
-      require => File["${awscli2::install_dir}/v2/${awscli2::version}"],
+      # clean up the install temp dir.
+      exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install':
+        require => File["${awscli2::install_dir}/v2/${awscli2::version}"],
+      }
+    } else {
+      # When using 'latest', just clean up the temp dir after install
+      exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install':
+        require => Exec['awscliv2-installer'],
+      }
     }
   }
 }
