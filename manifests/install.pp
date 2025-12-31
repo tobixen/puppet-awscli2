@@ -197,12 +197,14 @@ class awscli2::install {
       }
 
       # clean up the install temp dir.
-      exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install':
+      exec { 'awscli2-cleanup-tmpdir':
+        command => '/usr/bin/rm -rf /tmp/umd_awscli2_install',
         require => File["${awscli2::install_dir}/v2/${awscli2::version}"],
       }
     } else {
       # When using 'latest', just clean up the temp dir after install
-      exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install':
+      exec { 'awscli2-cleanup-tmpdir':
+        command => '/usr/bin/rm -rf /tmp/umd_awscli2_install',
         require => Exec['awscliv2-installer'],
       }
     }
