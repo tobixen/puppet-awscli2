@@ -1,3 +1,15 @@
+# puppet-awscli2
+
+This is a fork of [umd/awscli2](https://forge.puppet.com/modules/umd/awscli2) from the University of Maryland.
+
+The original source repository is at https://gitlab.umd.edu/it-platform/puppet-awscli2 - but I can't access it, probably it's behind a firewall.
+
+## Fork Changes
+
+- **GPG signature verification**: Downloads are verified using the official AWS CLI public key before installation
+- **Default to latest version**: The `version` parameter now defaults to `'latest'` for automatic updates
+- **Ubuntu support**: Added explicit support for Ubuntu 20.04 and 24.04
+
 #### Table of Contents
 
 1. [Overview](#overview)
