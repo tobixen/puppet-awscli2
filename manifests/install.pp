@@ -31,21 +31,28 @@ class awscli2::install {
   # Figure out if we need to do a new install (nothing installed),
   # an upgrade (existing install version differs to requested version)
   # or nothing (existing install version matches requested version)
-  if $facts['umd_awscli2_version'] {
-    if $facts['umd_awscli2_version'] == $awscli2::version {
-      # Nothing to do, installed matches requested.
-    } else {
-      # Installed differs from requested, need to do an upgrade install.
-      $need_upgrade = true
-    }
-  } else {
-    # nothing currently installed.
+  $is_installed = $facts['umd_awscli2_version'] != undef
+  $version_matches = $is_installed and ($facts['umd_awscli2_version'] == $awscli2::version)
+
+  # Determine action needed
+  if $is_installed and !$version_matches {
+    # Installed version differs from requested
+    $need_install = false
+    $need_upgrade = true
+  } elsif !$is_installed {
+    # Nothing installed yet
     $need_install = true
+    $need_upgrade = false
+  } else {
+    # Version matches, nothing to do
+    $need_install = false
+    $need_upgrade = false
   }
 
   if $need_install or $need_upgrade {
     # If we need to install/upgrade, we need to pull down the package.
     $package_url = "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${awscli2::version}.zip"
+    $signature_url = "${package_url}.sig"
 
     $default_args = [
       '--install-dir',
@@ -62,24 +69,90 @@ class awscli2::install {
 
     $args = shellquote($default_args+$extra_args);
 
-    # download and extract the package.
+    # Create temp directory for installation
     file { '/tmp/umd_awscli2_install':
       ensure => directory,
     }
-    -> archive { '/tmp/umd_awscli2.zip':
-      ensure       => present,
-      source       => $package_url,
-      extract      => true,
-      extract_path => '/tmp/umd_awscli2_install',
-      creates      => '/tmp/umd_awscli2_install/aws/install',
-      cleanup      => true,
+
+    if $awscli2::verify_signature {
+      # Deploy the AWS CLI public key for signature verification
+      file { '/tmp/umd_awscli2_install/aws-cli-public-key.asc':
+        ensure  => file,
+        source  => 'puppet:///modules/awscli2/aws-cli-public-key.asc',
+        mode    => '0444',
+        require => File['/tmp/umd_awscli2_install'],
+      }
+
+      # Download the signature file
+      archive { '/tmp/umd_awscli2_install/awscli2.zip.sig':
+        ensure  => present,
+        source  => $signature_url,
+        extract => false,
+        require => File['/tmp/umd_awscli2_install'],
+      }
+
+      # Download the zip file (without extracting yet)
+      archive { '/tmp/umd_awscli2.zip':
+        ensure  => present,
+        source  => $package_url,
+        extract => false,
+        require => File['/tmp/umd_awscli2_install'],
+      }
+
+      # Verify the GPG signature
+      exec { 'awscli2-verify-signature':
+        command   => '/usr/bin/gpg --no-default-keyring --keyring /tmp/umd_awscli2_install/aws-cli-keyring.gpg --import /tmp/umd_awscli2_install/aws-cli-public-key.asc && /usr/bin/gpg --no-default-keyring --keyring /tmp/umd_awscli2_install/aws-cli-keyring.gpg --verify /tmp/umd_awscli2_install/awscli2.zip.sig /tmp/umd_awscli2.zip',
+        cwd       => '/tmp/umd_awscli2_install',
+        logoutput => true,
+        require   => [
+          File['/tmp/umd_awscli2_install/aws-cli-public-key.asc'],
+          Archive['/tmp/umd_awscli2_install/awscli2.zip.sig'],
+          Archive['/tmp/umd_awscli2.zip'],
+        ],
+      }
+
+      # Extract the zip file after verification
+      exec { 'awscli2-extract':
+        command => '/usr/bin/unzip -o /tmp/umd_awscli2.zip -d /tmp/umd_awscli2_install',
+        creates => '/tmp/umd_awscli2_install/aws/install',
+        require => Exec['awscli2-verify-signature'],
+      }
+
+      # Clean up the zip file
+      exec { 'awscli2-cleanup-zip':
+        command     => '/usr/bin/rm -f /tmp/umd_awscli2.zip',
+        refreshonly => true,
+        subscribe   => Exec['awscli2-extract'],
+      }
+
+      # Run the installer
+      exec { 'awscliv2-installer':
+        command   => "/tmp/umd_awscli2_install/aws/install ${args}",
+        cwd       => '/tmp/umd_awscli2_install',
+        logoutput => true,
+        require   => Exec['awscli2-extract'],
+      }
+    } else {
+      # Skip signature verification - download and extract directly
+      archive { '/tmp/umd_awscli2.zip':
+        ensure       => present,
+        source       => $package_url,
+        extract      => true,
+        extract_path => '/tmp/umd_awscli2_install',
+        creates      => '/tmp/umd_awscli2_install/aws/install',
+        cleanup      => true,
+        require      => File['/tmp/umd_awscli2_install'],
+      }
+
+      # Run the installer
+      exec { 'awscliv2-installer':
+        command   => "/tmp/umd_awscli2_install/aws/install ${args}",
+        cwd       => '/tmp/umd_awscli2_install',
+        logoutput => true,
+        require   => Archive['/tmp/umd_awscli2.zip'],
+      }
     }
-    # run the installer
-    -> exec { 'awscliv2-installer':
-      command   => "/tmp/umd_awscli2_install/aws/install ${args}",
-      cwd       => '/tmp/umd_awscli2_install',
-      logoutput => true,
-    }
+
     # These next 3 (v2/latest+version) are created by the installer
     # but declaring them as resources (after the installer runs)
     # allows us to have puppet purge old installs while
@@ -87,19 +160,27 @@ class awscli2::install {
     # This model (upgrade first, then remove old) also allows
     # other things on the system using the aws cli to not fail
     # if they happen to run while we are upgrading.
-    -> file { "${awscli2::install_dir}/v2":
+    file { "${awscli2::install_dir}/v2":
       ensure  => directory,
       force   => true,
       purge   => true,
       recurse => true,
+      require => Exec['awscliv2-installer'],
     }
-    -> file { "${$awscli2::install_dir}/v2/current":
+
+    file { "${awscli2::install_dir}/v2/current":
       ensure  => link,
+      require => File["${awscli2::install_dir}/v2"],
     }
-    -> file { "${$awscli2::install_dir}/v2/${awscli2::version}":
+
+    file { "${awscli2::install_dir}/v2/${awscli2::version}":
       ensure  => directory,
+      require => File["${awscli2::install_dir}/v2/current"],
     }
+
     # clean up the install temp dir.
-    -> exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install': }
+    exec { '/usr/bin/rm -rf /tmp/umd_awscli2_install':
+      require => File["${awscli2::install_dir}/v2/${awscli2::version}"],
+    }
   }
 }
