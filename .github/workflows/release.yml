@@ -1,0 +1,42 @@
+name: "Module Release"
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: "Release to Forge"
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: "Get version"
+        id: "get_version"
+        run: |
+          echo "version=$(jq --raw-output .version metadata.json)" >> $GITHUB_OUTPUT
+
+      - name: "PDK build"
+        uses: docker://puppet/pdk:3.0.0.0
+        with:
+          args: "build"
+
+      - name: "Create GitHub release"
+        run: |
+          gh release create ${{ github.ref_name }} --title ${{ github.ref_name }} --generate-notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Publish to Forge"
+        uses: docker://puppet/pdk:3.0.0.0
+        with:
+          args: 'release publish --forge-token ${{ secrets.FORGE_API_KEY }} --force'

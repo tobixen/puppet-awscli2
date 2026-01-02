@@ -1,0 +1,10 @@
+fixtures:
+  forge_modules:
+    stdlib:
+      repo: puppetlabs/stdlib
+      ref: 9.0.0
+    archive:
+      repo: puppet/archive
+      ref: 7.0.0
+  symlinks:
+    awscli2: "#{source_dir}"

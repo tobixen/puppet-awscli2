@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main, feature/*]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Puppet Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Run puppet-lint
+        run: bundle exec rake lint
+
+  spec:
+    name: RSpec Tests (Puppet ${{ matrix.puppet }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        puppet: ['7', '8']
+        include:
+          - puppet: '7'
+            ruby: '3.1'
+          - puppet: '8'
+            ruby: '3.2'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby ${{ matrix.ruby }}
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+        env:
+          PUPPET_GEM_VERSION: "~> ${{ matrix.puppet }}.0"
+
+      - name: Run spec tests
+        run: bundle exec rake spec
+        env:
+          PUPPET_GEM_VERSION: "~> ${{ matrix.puppet }}.0"
