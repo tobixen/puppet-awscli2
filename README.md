@@ -1,18 +1,31 @@
+# puppet-awscli2
+
+This is a fork of [umd/awscli2](https://forge.puppet.com/modules/umd/awscli2) from the University of Maryland.
+
+The original source repository is at https://gitlab.umd.edu/it-platform/puppet-awscli2 - but I can't access it, probably it's behind a firewall.
+
+## Fork Changes
+
+- **GPG signature verification**: Downloads are verified using the official AWS CLI public key before installation
+- **Default to latest version**: The `version` parameter now defaults to `'latest'` for automatic updates
+- **Signature caching**: When using `'latest'`, only downloads when a new version is available (compares cached signature)
+- **Ubuntu support**: Added explicit support for Ubuntu 20.04 and 24.04
+
 #### Table of Contents
 
 1. [Overview](#overview)
 2. [Module Description - What the module does and why it is useful](#module-description)
 3. [Setup - The basics of getting started with awscli2](#setup)
     * [What awscli2 affects](#what-awscli2-affects)
+    * [Requirements](#requirements)
 4. [Usage - Configuration options and additional functionality](#usage)
-    * [Required Parameters](#required-parameters)
     * [Optional Parameters](#optional-parameters)
-    * [Example](#example)
+    * [Examples](#examples)
 5. [Limitations - OS compatibility, etc.](#limitations)
 
 ## Overview
 
-This module installs (or upgrades, or un-installs) the AWS CLI v2. Redhat has dropped the AWS CLI v1 from its repositories, and AWS has packaged up v2 of the CLI with all dependencies included (but not packaged it as an RPM).
+This module installs (or upgrades, or un-installs) the AWS CLI v2. AWS has packaged up v2 of the CLI with all dependencies included (but not packaged it as a deb or RPM).
 
 ## Module Description
 
@@ -22,10 +35,16 @@ command (provided by redhat) was installed into that location, and we do
 not want to break any scripts that do not have `/usr/local/bin` in their path
 or may have hard-coded `/usr/bin/aws`.
 
-This module requires the manual specification of the version of the CLI to
-install. This was done to prevent having to download the `latest` zip file
-from AWS on every puppet run just to see if it has been updated. This module
-will remove older versions after a successful upgrade to keep disk space down.
+By default, this module installs the latest available version of the CLI.
+When using a specific version, this module will remove older versions after
+a successful upgrade to keep disk space down. When using `'latest'`, old
+version cleanup is skipped since the version directory name is not known
+at Puppet compile time.
+
+By default, this module verifies the GPG signature of the downloaded package
+using the official AWS CLI public key, as recommended by AWS. This ensures
+the integrity and authenticity of the installer. See:
+https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 
 This module delivers a custom fact (`umd_awscliv2_version`) which is used to
 determine if an upgrade or clean install is needed (it will do nothing if
@@ -35,7 +54,7 @@ This module is not a complete replacement for a package management system, and
 it is possible for it to fail to un-install older versions on upgrade or
 `absent`. In particular, the currently installed version fact is based on
 the current value of `$bin_path`, and changing this parameter after an install
-has happened will leave the previous installation abandoned. 
+has happened will leave the previous installation abandoned.
 
 ## Setup
 
@@ -44,26 +63,39 @@ has happened will leave the previous installation abandoned.
 * By default, it will install the CLI into `/usr/local/aws-cli`.
 * By default, it will symlink binaries (`aws`, `aws_completer`) into `/usr/bin`.
 
+### Requirements
+
+* `gpg` - Required for signature verification (enabled by default).
+* `unzip` - Required for extracting the installer when signature verification is enabled.
+
 ## Usage
 
 Include the `awscli2` class and define the following parameters as required:
 
-### Required Parameters
-
-* `version`: The version of the CLI to install
-
 ### Optional Parameters
 
+* `version`: The version of the CLI to install, e.g. `'2.15.0'`. Defaults to `'latest'`, which installs/upgrades to the latest available version. When using `'latest'`, the module caches the AWS signature file and only downloads the full package when a new version is available.
 * `ensure`: Set to `absent` to un-install the AWS CLI.
 * `install_dir`: Path to install the CLI into. Defaults to `/usr/local/aws-cli`.
 * `bin_dir`: Path to create symlinks to binaries. Defaults to `/usr/bin`.
+* `verify_signature`: Whether to verify the GPG signature of the downloaded package. Defaults to `true`.
 
-### Example
+### Examples
+
+Install the latest version (default):
 
 ```yaml
 ---
 classes:
   - awscli2
-awscli2::version: '2.0.28'
+```
+
+Install a specific version:
+
+```yaml
+---
+classes:
+  - awscli2
+awscli2::version: '2.15.0'
 ```
 
