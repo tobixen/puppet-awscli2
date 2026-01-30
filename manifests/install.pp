@@ -179,6 +179,14 @@ class awscli2::install {
         subscribe   => Exec['awscliv2-installer'],
       }
 
+      # Clean up old versions, keeping the current version plus N most recent
+      $retain = $awscli2::retain_versions
+      exec { 'awscli2-cleanup-old-versions':
+        command     => "/bin/bash -c 'cd ${awscli2::install_dir}/v2 && current_ver=\$(readlink current) && ls -1dt */ 2>/dev/null | grep -v \"^current/\$\" | grep -v \"^\${current_ver}/\$\" | tail -n +\$((${retain} + 1)) | xargs -r rm -rf'",
+        refreshonly => true,
+        subscribe   => Exec['awscliv2-installer'],
+      }
+
       # Clean up the temp dir
       exec { 'awscli2-cleanup-tmpdir':
         command     => '/usr/bin/rm -rf /tmp/umd_awscli2_install',
@@ -311,6 +319,15 @@ class awscli2::install {
         exec { 'awscli2-cache-signature':
           command => "/usr/bin/curl -fL '${signature_url}' -o /var/cache/awscli2/latest.sig",
           require => [Exec['awscliv2-installer'], File['/var/cache/awscli2']],
+        }
+
+        # Clean up old versions, keeping the current version plus N most recent
+        # For fresh installs there shouldn't be old versions, but this handles
+        # edge cases like manual installations or interrupted previous runs.
+        $retain = $awscli2::retain_versions
+        exec { 'awscli2-cleanup-old-versions':
+          command => "/bin/bash -c 'cd ${awscli2::install_dir}/v2 && current_ver=\$(readlink current) && ls -1dt */ 2>/dev/null | grep -v \"^current/\$\" | grep -v \"^\${current_ver}/\$\" | tail -n +\$((${retain} + 1)) | xargs -r rm -rf'",
+          require => Exec['awscliv2-installer'],
         }
 
         # clean up the install temp dir.

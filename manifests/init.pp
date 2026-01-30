@@ -28,12 +28,19 @@
 #   Defaults to `true`. Requires `gpg` and `unzip` to be installed.
 #   See: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html
 #
+# @param retain_versions
+#   Number of previous AWS CLI versions to retain when using `version => 'latest'`.
+#   This allows for rollback capability. Set to 0 to remove all old versions
+#   immediately after upgrade. Defaults to 1.
+#   Note: Cleanup only runs after successful upgrades, not on every Puppet run.
+#
 class awscli2 (
   String[1]                 $version = 'latest',
   Enum['absent', 'present'] $ensure = 'present',
   String[1]                 $install_dir = '/usr/local/aws-cli',
   String[1]                 $bin_dir = '/usr/bin',
   Boolean                   $verify_signature = true,
+  Integer[0]                $retain_versions = 1,
 ) {
   if $ensure == 'absent' {
     contain awscli2::uninstall

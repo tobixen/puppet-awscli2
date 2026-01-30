@@ -158,5 +158,55 @@ describe 'awscli2' do
       it { is_expected.to compile.with_all_deps }
       it { is_expected.to contain_file('/opt/aws-cli/v2') }
     end
+
+    context 'with retain_versions parameter' do
+      context 'default value (fresh install with latest)' do
+        # Fresh install with version => 'latest'
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(1 \+ 1\)\)}) }
+      end
+
+      context 'custom value on fresh install' do
+        let(:params) { { 'retain_versions' => 3 } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(3 \+ 1\)\)}) }
+      end
+
+      context 'zero value (remove all old versions)' do
+        let(:params) { { 'retain_versions' => 0 } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(0 \+ 1\)\)}) }
+      end
+
+      context 'on upgrade path with latest' do
+        let(:facts) do
+          {
+            :osfamily        => 'Debian',
+            :operatingsystem => 'Ubuntu',
+            :operatingsystemrelease => '24.04',
+            :kernel          => 'Linux',
+            :architecture    => 'x86_64',
+            :umd_awscli2_version => '2.15.0',
+          }
+        end
+        let(:params) { { 'retain_versions' => 2 } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_refreshonly(true) }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(2 \+ 1\)\)}) }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').that_subscribes_to('Exec[awscliv2-installer]') }
+      end
+
+      context 'with specific version (no cleanup exec)' do
+        let(:params) { { 'version' => '2.15.0', 'retain_versions' => 2 } }
+
+        it { is_expected.to compile.with_all_deps }
+        # Specific versions use file purge instead of exec cleanup
+        it { is_expected.not_to contain_exec('awscli2-cleanup-old-versions') }
+        it { is_expected.to contain_file('/usr/local/aws-cli/v2').with_purge(true) }
+      end
+    end
   end
 end
