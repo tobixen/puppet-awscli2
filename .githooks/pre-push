@@ -1,0 +1,30 @@
+#!/bin/sh
+# Abort a push if a version tag (v*) is included but doesn't match
+# the version declared in metadata.json at the tagged commit.
+
+zero=0000000000000000000000000000000000000000
+
+metadata_version() {
+  # Extract "version" from metadata.json at $1 without requiring jq
+  git show "$1:metadata.json" 2>/dev/null |
+    grep '"version"' | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+}
+
+while read _local_ref _local_sha _remote_ref _remote_sha; do
+  # Deletions carry nothing to check
+  [ "$_local_sha" = "$zero" ] && continue
+  # The remote ref is what gets created, whatever the local name
+  case "$_remote_ref" in
+    refs/tags/v*)
+      tag="${_remote_ref#refs/tags/v}"
+      meta="$(metadata_version "$_local_sha")"
+      if [ "$tag" != "$meta" ]; then
+        echo "error: tag version '$tag' does not match metadata.json version '$meta' at the tagged commit" >&2
+        echo "       Update metadata.json (and CHANGELOG.md) before pushing this tag." >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+exit 0
