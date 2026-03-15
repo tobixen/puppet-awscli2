@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run the commit-msg stage of .pre-commit-config.yaml (conventional commits).
+# Committed rather than generated: `pre-commit install` refuses to run while
+# core.hooksPath is set, which `rake setup` does.
+
+if ! command -v pre-commit >/dev/null 2>&1; then
+  echo 'commit-msg: pre-commit not found; install it to check commit messages' >&2
+  exit 1
+fi
+
+exec pre-commit hook-impl --config=.pre-commit-config.yaml --hook-type=commit-msg \
+  --hook-dir "$(cd "$(dirname "$0")" && pwd)" -- "$@"
