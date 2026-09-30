@@ -8,6 +8,11 @@ class awscli2::uninstall {
     backup => false,
   }
 
+  # Installed by awscli2::install for version => 'latest'
+  file { '/usr/local/sbin/awscli2-cleanup-old-versions':
+    ensure => absent,
+  }
+
   # XXX - hinge this on the `installed` fact, or just blindly remove?
   if $facts['umd_awscli2_version'] {
     file { "${awscli2::install_dir}/v2":

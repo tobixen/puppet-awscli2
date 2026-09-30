@@ -88,6 +88,17 @@ class awscli2::install {
       ensure => directory,
     }
 
+    if $awscli2::version == 'latest' {
+      # Removes old versions after an install; see retain_versions
+      $cleanup_script = '/usr/local/sbin/awscli2-cleanup-old-versions'
+      $cleanup_command = "${cleanup_script} ${shellquote("${awscli2::install_dir}/v2", String($awscli2::retain_versions))}"
+      file { $cleanup_script:
+        ensure => file,
+        source => 'puppet:///modules/awscli2/awscli2-cleanup-old-versions',
+        mode   => '0755',
+      }
+    }
+
     # For 'latest' with existing install, use signature caching to avoid
     # unnecessary downloads. We compare the current signature with a cached
     # copy and only proceed if they differ.
@@ -180,10 +191,10 @@ class awscli2::install {
       }
 
       # Clean up old versions, keeping the current version plus N most recent
-      $retain = $awscli2::retain_versions
       exec { 'awscli2-cleanup-old-versions':
-        command     => "/bin/bash -c 'cd ${awscli2::install_dir}/v2 && current_ver=\$(readlink current) && ls -1dt */ 2>/dev/null | grep -v \"^current/\$\" | grep -v \"^\${current_ver}/\$\" | tail -n +\$((${retain} + 1)) | xargs -r rm -rf'",
+        command     => $cleanup_command,
         refreshonly => true,
+        require     => File[$cleanup_script],
         subscribe   => Exec['awscliv2-installer'],
       }
 
@@ -324,10 +335,9 @@ class awscli2::install {
         # Clean up old versions, keeping the current version plus N most recent
         # For fresh installs there shouldn't be old versions, but this handles
         # edge cases like manual installations or interrupted previous runs.
-        $retain = $awscli2::retain_versions
         exec { 'awscli2-cleanup-old-versions':
-          command => "/bin/bash -c 'cd ${awscli2::install_dir}/v2 && current_ver=\$(readlink current) && ls -1dt */ 2>/dev/null | grep -v \"^current/\$\" | grep -v \"^\${current_ver}/\$\" | tail -n +\$((${retain} + 1)) | xargs -r rm -rf'",
-          require => Exec['awscliv2-installer'],
+          command => $cleanup_command,
+          require => [Exec['awscliv2-installer'], File[$cleanup_script]],
         }
 
         # clean up the install temp dir.

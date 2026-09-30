@@ -16,6 +16,7 @@ describe 'awscli2' do
 
         it { is_expected.to compile.with_all_deps }
         it { is_expected.to contain_class('awscli2::uninstall') }
+        it { is_expected.to contain_file('/usr/local/sbin/awscli2-cleanup-old-versions').with_ensure('absent') }
       end
     end
   end
@@ -163,21 +164,34 @@ describe 'awscli2' do
       context 'default value (fresh install with latest)' do
         # Fresh install with version => 'latest'
         it { is_expected.to compile.with_all_deps }
-        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(1 \+ 1\)\)}) }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command("/usr/local/sbin/awscli2-cleanup-old-versions /usr/local/aws-cli/v2 1") }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').that_requires('File[/usr/local/sbin/awscli2-cleanup-old-versions]') }
+        it {
+          is_expected.to contain_file('/usr/local/sbin/awscli2-cleanup-old-versions')
+            .with_source('puppet:///modules/awscli2/awscli2-cleanup-old-versions')
+            .with_mode('0755')
+        }
+      end
+
+      context 'install_dir needing shell quoting' do
+        let(:params) { { 'install_dir' => "/opt/aws cli's" } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%(/usr/local/sbin/awscli2-cleanup-old-versions "/opt/aws cli's/v2" 1)) }
       end
 
       context 'custom value on fresh install' do
         let(:params) { { 'retain_versions' => 3 } }
 
         it { is_expected.to compile.with_all_deps }
-        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(3 \+ 1\)\)}) }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command("/usr/local/sbin/awscli2-cleanup-old-versions /usr/local/aws-cli/v2 3") }
       end
 
       context 'zero value (remove all old versions)' do
         let(:params) { { 'retain_versions' => 0 } }
 
         it { is_expected.to compile.with_all_deps }
-        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(0 \+ 1\)\)}) }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command("/usr/local/sbin/awscli2-cleanup-old-versions /usr/local/aws-cli/v2 0") }
       end
 
       context 'on upgrade path with latest' do
@@ -195,7 +209,7 @@ describe 'awscli2' do
 
         it { is_expected.to compile.with_all_deps }
         it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_refreshonly(true) }
-        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command(%r{tail -n \+\$\(\(2 \+ 1\)\)}) }
+        it { is_expected.to contain_exec('awscli2-cleanup-old-versions').with_command("/usr/local/sbin/awscli2-cleanup-old-versions /usr/local/aws-cli/v2 2") }
         it { is_expected.to contain_exec('awscli2-cleanup-old-versions').that_subscribes_to('Exec[awscliv2-installer]') }
       end
 

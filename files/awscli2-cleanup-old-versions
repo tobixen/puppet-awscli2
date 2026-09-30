@@ -1,0 +1,38 @@
+#!/bin/sh
+# Remove old AWS CLI v2 versions, keeping the one `current` points to plus
+# the RETAIN most recently modified others.
+#
+# Usage: awscli2-cleanup-old-versions V2_DIR RETAIN
+#
+# Managed by Puppet (awscli2 module).
+set -eu
+
+if [ $# -ne 2 ]; then
+  echo "usage: $0 V2_DIR RETAIN" >&2
+  exit 2
+fi
+dir=$1
+retain=$2
+case $retain in
+  '' | *[!0-9]*)
+    echo "$0: RETAIN must be a non-negative integer, got '$retain'" >&2
+    exit 2
+    ;;
+esac
+
+cd "$dir"
+
+# The installer may point `current` at an absolute or a relative path;
+# resolve it and compare by directory name only.
+target=$(readlink -f current || true)
+if [ -z "$target" ] || [ ! -d "$target" ]; then
+  echo "$0: cannot resolve $dir/current, refusing to clean up" >&2
+  exit 1
+fi
+current=$(basename "$target")
+
+ls -1dt -- */ | sed 's|/$||' | grep -vFx -e current -e "$current" |
+  tail -n +$((retain + 1)) |
+  while IFS= read -r old; do
+    rm -rf -- "$old"
+  done

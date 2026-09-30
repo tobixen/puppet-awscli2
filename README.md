@@ -79,6 +79,7 @@ Include the `awscli2` class and define the following parameters as required:
 * `install_dir`: Path to install the CLI into. Defaults to `/usr/local/aws-cli`.
 * `bin_dir`: Path to create symlinks to binaries. Defaults to `/usr/bin`.
 * `verify_signature`: Whether to verify the GPG signature of the downloaded package. Defaults to `true`.
+* `retain_versions`: With `version => 'latest'`, how many previous versions to keep besides the current one after an upgrade, for rollback. Defaults to `1`; `0` keeps only the current version.
 
 ### Examples
 
